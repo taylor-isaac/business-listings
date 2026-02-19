@@ -1,0 +1,7 @@
+node_modules/
+.checkpoint.json
+.chrome-profile/
+.env
+.env.*
+!.env.example
+.DS_Store
