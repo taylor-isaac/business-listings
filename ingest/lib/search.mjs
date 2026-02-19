@@ -3,14 +3,16 @@ import { humanScroll, randomDelay, searchDelay, longPause, LONG_PAUSE_INTERVAL }
 const MAX_PAGE = 30;
 
 /**
- * Build the BizBuySell search URL with gross revenue filter ($750K–$1M).
+ * Build the BizBuySell search URL with industry + gross revenue filters.
+ * Industry: Cleaning Businesses
+ * Gross Revenue: $750K–$1M
  * The q= parameter is base64-encoded filter params.
  */
 function buildSearchUrl(pageNum) {
   const params = "gifrom=750000&gito=1000000";
   const q = Buffer.from(params).toString("base64");
   const pagePath = pageNum > 1 ? `${pageNum}/` : "";
-  return `https://www.bizbuysell.com/businesses-for-sale/${pagePath}?q=${encodeURIComponent(q)}`;
+  return `https://www.bizbuysell.com/cleaning-businesses-for-sale/${pagePath}?q=${encodeURIComponent(q)}`;
 }
 
 /**

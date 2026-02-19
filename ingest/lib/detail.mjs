@@ -150,24 +150,50 @@ export async function extractListingData(page, url) {
     }
 
     // --- Description text ---
-    // The main listing description is typically in a specific container
-    const descEl = document.querySelector(
-      ".businessDescription, #businessDescription, .listingProfile_description, .bfsListing_mainBody"
-    );
-    result.description_text = descEl
-      ? descEl.innerText.trim()
-      : null;
+    // Try multiple selectors for BizBuySell's listing description
+    const descSelectors = [
+      ".businessDescription",
+      "#businessDescription",
+      ".listingProfile_description",
+      ".bfsListing_mainBody",
+      "[class*='description']",
+      "[class*='Description']",
+      "[id*='description']",
+      "[id*='Description']",
+      ".listing-description",
+      ".business-description",
+    ];
+    let descEl = null;
+    for (const sel of descSelectors) {
+      descEl = document.querySelector(sel);
+      if (descEl && descEl.innerText.trim().length > 50) break;
+      descEl = null;
+    }
+    result.description_text = descEl ? descEl.innerText.trim() : null;
 
-    // Fallback: if no dedicated element found, grab a reasonable chunk from the page
+    // Fallback: grab the largest text block on the page (likely the description)
     if (!result.description_text) {
-      // Look for the largest <p> or <div> block that looks like a description
-      const paragraphs = document.querySelectorAll("p, .description");
+      const candidates = document.querySelectorAll("p, div.description, div.content, section, article");
       let longest = "";
-      for (const p of paragraphs) {
-        const t = p.innerText.trim();
-        if (t.length > longest.length && t.length > 100) longest = t;
+      for (const el of candidates) {
+        const t = el.innerText.trim();
+        if (t.length > longest.length && t.length > 100) {
+          const linkCount = el.querySelectorAll("a").length;
+          if (linkCount < 5) longest = t;
+        }
       }
       if (longest) result.description_text = longest;
+    }
+
+    // Last resort: concatenate all visible text that looks like prose
+    if (!result.description_text) {
+      const allParagraphs = document.querySelectorAll("p");
+      const proseBlocks = [];
+      for (const p of allParagraphs) {
+        const t = p.innerText.trim();
+        if (t.length > 50) proseBlocks.push(t);
+      }
+      if (proseBlocks.length > 0) result.description_text = proseBlocks.join("\n\n");
     }
 
     // --- Owner involvement signal ---

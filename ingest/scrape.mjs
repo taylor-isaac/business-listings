@@ -16,12 +16,16 @@ async function retry(fn, label) {
       const isLast = attempt === MAX_RETRIES;
       console.error(`[retry] ${label} attempt ${attempt}/${MAX_RETRIES} failed: ${err.message}`);
 
-      // Detect CAPTCHA or block
+      // Detect CAPTCHA, block, or server error
       if (err.message?.includes("captcha") || err.message?.includes("blocked") || err.message?.includes("403")) {
         console.error(`[retry] Possible CAPTCHA/block detected. Waiting 60s before retry...`);
         await new Promise((r) => setTimeout(r, 60000));
+      } else if (err.message?.includes("500") || err.message?.includes("ERR_HTTP_RESPONSE_CODE_FAILURE")) {
+        const wait = 30000 + attempt * 15000;
+        console.error(`[retry] Server error (500). Waiting ${wait / 1000}s before retry...`);
+        await new Promise((r) => setTimeout(r, wait));
       } else if (!isLast) {
-        const backoff = attempt * 5000;
+        const backoff = attempt * 10000;
         await new Promise((r) => setTimeout(r, backoff));
       }
 
