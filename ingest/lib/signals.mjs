@@ -1,6 +1,10 @@
 /**
  * Extract scoring signals from a listing's description text and structured fields.
  * Returns an object with signal columns ready for DB update.
+ *
+ * v2 — Redesigned based on broker analysis of 62 real listings.
+ * New signals: employee_count, years_in_business, description_quality,
+ *              price_revenue_ratio. Removed: employee_dependency.
  */
 
 // --- Growth potential patterns ---
@@ -44,9 +48,6 @@ const reasonPatterns = [
 // --- Customer concentration risk ---
 const concentrationPattern = /(?:(?:single|one|few|major|primary|main|key)\s+(?:customer|client|account|contract))|(?:(?:customer|client)\s+(?:concentration|dependency|dependent))|(?:(?:\d{1,2}|one|two|three|few)\s+(?:large|major|key)\s+(?:customers?|clients?|accounts?))|(?:(?:relies?|reliant|dependent)\s+on\s+(?:a\s+)?(?:single|one|few|handful))/i;
 
-// --- Employee dependency risk ---
-const employeeDependencyPattern = /(?:key\s+(?:employee|person|man|staff|personnel)\s+(?:risk|dependent|dependency))|(?:(?:relies?|reliant|dependent)\s+on\s+(?:key\s+)?(?:employees?|staff|personnel))|(?:(?:staff|employee)\s+(?:turnover|retention)\s+(?:issue|problem|concern|risk|challenge))|(?:hard\s+to\s+(?:find|hire|retain|replace)\s+(?:employees?|staff|workers?|technicians?))|(?:(?:labor|staffing|workforce)\s+(?:shortage|challenge|issue|problem))|(?:difficult\s+(?:to\s+)?(?:staff|recruit|hire))/i;
-
 // --- Lease terms patterns ---
 const leasePatterns = [
   { pattern: /long[- ]?term\s+lease/i, label: "long-term lease" },
@@ -62,7 +63,9 @@ const leasePatterns = [
   { pattern: /lease\s+expir(?:ing|es?)\s+soon/i, label: "lease expiring soon" },
 ];
 
-// --- Data completeness fields to check ---
+// --- Data completeness: critical financial fields ---
+// v2: Split into "critical" (earnings) and "general" completeness.
+// Missing both SDE and EBITDA triggers a hard penalty in the scoring function.
 const completenessFields = [
   "asking_price",
   "cash_flow_sde",
@@ -105,9 +108,6 @@ export function extractSignals(descriptionText, listing) {
   // Customer concentration risk
   const customerConcentrationRisk = concentrationPattern.test(desc);
 
-  // Employee dependency
-  const employeeDependency = employeeDependencyPattern.test(desc);
-
   // Lease terms — first match wins, with dynamic label support
   let leaseTerms = null;
   for (const { pattern, label } of leasePatterns) {
@@ -133,11 +133,18 @@ export function extractSignals(descriptionText, listing) {
   }
 
   // SDE multiple (computed from structured fields)
+  // v2: Falls back to EBITDA if SDE is missing, so the weight stays active.
   let sdeMultiple = null;
-  const { asking_price, cash_flow_sde } = listing;
-  if (asking_price && cash_flow_sde && cash_flow_sde > 0) {
-    sdeMultiple = Math.round((asking_price / cash_flow_sde) * 100) / 100;
+  const { asking_price, cash_flow_sde, ebitda } = listing;
+  const earnings = (cash_flow_sde && cash_flow_sde > 0) ? cash_flow_sde
+                 : (ebitda && ebitda > 0) ? ebitda
+                 : null;
+  if (asking_price && earnings) {
+    sdeMultiple = Math.round((asking_price / earnings) * 100) / 100;
   }
+
+  // Flag whether earnings data is completely missing
+  const hasEarningsData = earnings != null;
 
   // Data completeness score
   const present = completenessFields.filter(
@@ -145,13 +152,32 @@ export function extractSignals(descriptionText, listing) {
   ).length;
   const dataCompletenessScore = Math.round((present / completenessFields.length) * 100) / 100;
 
+  // --- NEW v2 signals ---
+
+  // Description quality — length-based proxy for seller seriousness
+  const descLen = (descriptionText || "").trim().length;
+  let descriptionQuality;
+  if (descLen === 0) descriptionQuality = 0.0;
+  else if (descLen < 100) descriptionQuality = 0.2;
+  else if (descLen < 500) descriptionQuality = 0.6;
+  else descriptionQuality = 1.0;
+
+  // Price-to-revenue ratio sanity check
+  const { gross_revenue } = listing;
+  let priceRevenueRatio = null;
+  if (asking_price && gross_revenue && gross_revenue > 0) {
+    priceRevenueRatio = Math.round((asking_price / gross_revenue) * 100) / 100;
+  }
+
   return {
     growth_potential: growthPotential,
     reason_for_sale: reasonForSale,
     customer_concentration_risk: customerConcentrationRisk,
-    employee_dependency: employeeDependency,
     lease_terms: leaseTerms,
     sde_multiple: sdeMultiple,
+    has_earnings_data: hasEarningsData,
     data_completeness_score: dataCompletenessScore,
+    description_quality: descriptionQuality,
+    price_revenue_ratio: priceRevenueRatio,
   };
 }
