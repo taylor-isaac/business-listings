@@ -74,10 +74,20 @@ export async function extractListingData(page, url) {
     const allText = document.body.innerText;
 
     function extractLabeledMoney(text, label) {
-      // Match "Label: $1,234" or "Label: ~$1,234" (with optional tilde)
-      const re = new RegExp(label + "[:\\s]*~?\\s*\\$([0-9,]+)", "i");
+      // Match patterns like:
+      //   "Cash Flow: $178,000"   "SDE: ~$178K"   "SDE of ~$178K"
+      //   "Revenue $1.2M"         "EBITDA: $250,000"
+      const re = new RegExp(
+        label + "(?:\\s+(?:of|is|was|at))?[:\\s]*~?\\s*\\$([0-9,.]+)(K|M)?",
+        "i"
+      );
       const m = text.match(re);
-      return m ? "$" + m[1] : null;
+      if (!m) return null;
+      let raw = m[1].replace(/,/g, "");
+      let num = parseFloat(raw);
+      if (m[2]?.toUpperCase() === "K") num *= 1000;
+      if (m[2]?.toUpperCase() === "M") num *= 1000000;
+      return "$" + Math.round(num).toLocaleString("en-US");
     }
 
     result.asking_price_raw = extractLabeledMoney(allText, "Asking Price") || findValue("Asking Price");
