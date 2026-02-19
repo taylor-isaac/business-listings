@@ -14,7 +14,9 @@ export function extractIdFromUrl(url) {
  */
 export function parseMoneyToNumber(s) {
   if (!s) return null;
-  const cleaned = s.replace(/[^0-9.]/g, "");
+  // Strip parenthetical suffixes like "(24.45%)" before parsing
+  const stripped = s.replace(/\s*\([^)]*\)/g, "").trim();
+  const cleaned = stripped.replace(/[^0-9.]/g, "");
   if (!cleaned) return null;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
