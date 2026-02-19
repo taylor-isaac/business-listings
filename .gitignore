@@ -3,5 +3,8 @@ node_modules/
 .chrome-profile/
 .env
 .env.*
+.env.local
 !.env.example
 .DS_Store
+.next/
+supabase/.temp/

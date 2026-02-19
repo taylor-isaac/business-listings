@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "scrape": "node --env-file=.env scrape.mjs",
+    "score": "node --env-file=.env score.mjs",
     "test:db": "node --env-file=.env upsert-test.mjs"
   },
   "dependencies": {

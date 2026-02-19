@@ -4,6 +4,8 @@ import { extractListingData } from "./lib/detail.mjs";
 import { batchUpsert } from "./lib/supabase.mjs";
 import { loadCheckpoint, saveCheckpoint, clearCheckpoint } from "./lib/checkpoint.mjs";
 import { detailDelay, longPause, LONG_PAUSE_INTERVAL } from "./lib/delays.mjs";
+import { extractSignals } from "./lib/signals.mjs";
+import { calculateScore } from "./lib/weights.mjs";
 
 const MAX_RETRIES = 3;
 const UPSERT_BATCH_SIZE = 50;
@@ -73,7 +75,9 @@ async function main() {
       processed++;
       try {
         const data = await retry(() => extractListingData(page, url), `detail:${url}`);
-        buffer.push(data);
+        const extracted = extractSignals(data.description_text, data);
+        const { index_score } = calculateScore({ ...data, ...extracted });
+        buffer.push({ ...data, index_score });
         console.log(`[extract] (${processed}/${pending.length}) ${data.source_listing_id} — ${data.state || "?"} — $${data.gross_revenue?.toLocaleString() || "?"}`);
 
         // Check for CAPTCHA indicators
