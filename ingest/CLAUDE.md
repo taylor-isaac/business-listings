@@ -8,7 +8,7 @@ them into the Supabase `listings` table. Targets businesses with $750K-$1M gross
 - **Runtime**: Node.js 20 (ES modules — all files use `.mjs`)
 - **Browser automation**: Playwright + playwright-extra + puppeteer-extra-plugin-stealth
 - **Database**: Supabase (PostgreSQL) via `@supabase/supabase-js`
-- **CI/CD**: GitHub Actions — daily at 01:00 UTC + manual dispatch
+- **CI/CD**: GitHub Actions — manual dispatch only
 
 ## Project Structure
 
@@ -32,8 +32,9 @@ All commands run from this (`ingest/`) directory:
 ```bash
 npm install                 # Install dependencies
 node scrape.mjs             # Run full pipeline (requires env vars)
-node upsert-test.mjs        # Smoke test — fetches one listing, upserts to DB
 ```
+
+**IMPORTANT: Do NOT run `upsert-test.mjs` or any plain HTTP fetch against BizBuySell. The site blocks non-browser requests with 403 errors. All scraping must go through Playwright via `scrape.mjs`. Only use `node --env-file=.env analyze-listings.mjs` to verify database contents.**
 
 ## Environment Variables
 

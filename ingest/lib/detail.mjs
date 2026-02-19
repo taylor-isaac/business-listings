@@ -74,21 +74,68 @@ export async function extractListingData(page, url) {
     const allText = document.body.innerText;
 
     function extractLabeledMoney(text, label) {
-      const re = new RegExp(label + "[:\\s]*\\$([0-9,]+)", "i");
+      // Match "Label: $1,234" or "Label: ~$1,234" (with optional tilde)
+      const re = new RegExp(label + "[:\\s]*~?\\s*\\$([0-9,]+)", "i");
       const m = text.match(re);
       return m ? "$" + m[1] : null;
     }
 
     result.asking_price_raw = extractLabeledMoney(allText, "Asking Price") || findValue("Asking Price");
-    result.cash_flow_sde_raw = extractLabeledMoney(allText, "Cash Flow") || findValue("Cash Flow");
-    result.gross_revenue_raw = extractLabeledMoney(allText, "Gross Revenue") || findValue("Gross Revenue");
+    result.cash_flow_sde_raw =
+      extractLabeledMoney(allText, "Cash Flow") ||
+      extractLabeledMoney(allText, "SDE") ||
+      extractLabeledMoney(allText, "Seller'?s Discretionary Earnings") ||
+      findValue("Cash Flow") ||
+      findValue("SDE");
+    result.gross_revenue_raw = extractLabeledMoney(allText, "Gross Revenue") || extractLabeledMoney(allText, "Revenue") || findValue("Gross Revenue");
     result.ebitda_raw = extractLabeledMoney(allText, "EBITDA") || findValue("EBITDA");
     result.inventory_raw = findValue("Inventory");
     result.ffe_raw = extractLabeledMoney(allText, "FF&E") || extractLabeledMoney(allText, "Furniture") || findValue("FF&E");
     result.num_employees_raw = findValue("Employees") || findValue("Number of Employees");
-    result.num_years_raw = findValue("Year Established") || findValue("Years");
     result.support_training_raw = findValue("Support") || findValue("Training");
+
+    // --- Year / num_years extraction ---
+    result.num_years_raw = findValue("Year Established") || findValue("Established") || findValue("Years in Business") || findValue("Years");
+    if (!result.num_years_raw) {
+      // "Established in 2006" / "Founded in 1984" / "Operating since 2010"
+      const estMatch = allText.match(/(?:established|founded|operating|in business)\s+(?:in\s+|since\s+)?(\d{4})/i);
+      if (estMatch) result.num_years_raw = estMatch[1];
+    }
+    if (!result.num_years_raw) {
+      // "Established in the 1980s" → use decade start
+      const decadeMatch = allText.match(/(?:established|founded|operating|in business)\s+(?:in\s+)?(?:the\s+)?(\d{4})s/i);
+      if (decadeMatch) result.num_years_raw = decadeMatch[1];
+    }
+    if (!result.num_years_raw) {
+      // "20 years in business" / "15+ years established"
+      const yrsMatch = allText.match(/(\d{1,3})\+?\s*(?:years?|yrs?)[\s-]+(?:in business|established|old|operating|of (?:operating|business))/i);
+      if (yrsMatch) result.num_years_raw = yrsMatch[1] + " years";
+    }
+    if (!result.num_years_raw) {
+      // "nearly 20 years" / "over 30 years" / "approximately 15 years"
+      const approxMatch = allText.match(/(?:nearly|over|approximately|about|almost)\s+(\d{1,3})\s*(?:years?|yrs?)/i);
+      if (approxMatch) result.num_years_raw = approxMatch[1] + " years";
+    }
+    if (!result.num_years_raw) {
+      // "open for 12 years" / "operating for 25 years"
+      const forMatch = allText.match(/(?:open|operating|in business|running)\s+for\s+(\d{1,3})\+?\s*(?:years?|yrs?)/i);
+      if (forMatch) result.num_years_raw = forMatch[1] + " years";
+    }
+
+    // --- SBA pre-approval (search description text, not just DOM) ---
     result.sba_preapproval_raw = findValue("SBA") || findValue("Pre-Qualified");
+    if (!result.sba_preapproval_raw) {
+      const sbaPatterns = [
+        /SBA\s+pre[- ]?(?:qualified|approved)/i,
+        /pre[- ]?(?:qualified|approved)\s+(?:for\s+)?SBA/i,
+        /(?:eligible|approved)\s+for\s+SBA\s+(?:financing|loan)/i,
+        /SBA\s+financing\s+(?:available|eligible)/i,
+      ];
+      for (const pat of sbaPatterns) {
+        const m = allText.match(pat);
+        if (m) { result.sba_preapproval_raw = m[0]; break; }
+      }
+    }
 
     // State fallback: look for state in the header breadcrumb area
     if (!result.state) {
@@ -126,15 +173,26 @@ export async function extractListingData(page, url) {
     // --- Owner involvement signal ---
     const descLower = (result.description_text || allText).toLowerCase();
     const ownerPatterns = [
-      { pattern: /absentee\s*owner/,       label: "absentee owner" },
-      { pattern: /semi[- ]?absentee/,       label: "semi-absentee" },
-      { pattern: /manager[- ]?run/,          label: "manager run" },
-      { pattern: /manager\s+in\s+place/,     label: "manager in place" },
-      { pattern: /management\s+in\s+place/,  label: "management in place" },
-      { pattern: /owner[- ]?operated/,        label: "owner operated" },
-      { pattern: /owner[- ]?involved/,        label: "owner involved" },
-      { pattern: /hands[- ]?on\s+owner/,      label: "hands-on owner" },
-      { pattern: /run\s+by\s+(the\s+)?owner/, label: "owner operated" },
+      // Low involvement (ordered most → least specific)
+      { pattern: /absentee\s*owner/,              label: "absentee owner" },
+      { pattern: /semi[- ]?absentee/,              label: "semi-absentee" },
+      { pattern: /passive\s+(?:income|investment)/, label: "absentee owner" },
+      { pattern: /hands[- ]?off/,                  label: "absentee owner" },
+      { pattern: /low[- ]?touch/,                  label: "semi-absentee" },
+      { pattern: /minimal\s+owner/,                label: "semi-absentee" },
+      { pattern: /manager[- ]?run/,                label: "manager run" },
+      { pattern: /manager\s+in\s+place/,           label: "manager in place" },
+      { pattern: /management\s+in\s+place/,        label: "management in place" },
+      { pattern: /(?:staff|team|employees?)\s+(?:run|manage)/,  label: "manager run" },
+      // High involvement
+      { pattern: /owner[- ]?operated/,             label: "owner operated" },
+      { pattern: /owner[- ]?involved/,             label: "owner involved" },
+      { pattern: /hands[- ]?on\s+owner/,           label: "hands-on owner" },
+      { pattern: /working\s+owner/,                label: "owner operated" },
+      { pattern: /full[- ]?time\s+owner/,          label: "owner operated" },
+      { pattern: /part[- ]?time\s+owner/,          label: "semi-absentee" },
+      { pattern: /run\s+by\s+(the\s+)?owner/,      label: "owner operated" },
+      { pattern: /owner\s+(?:can\s+)?semi[- ]?retire/, label: "semi-absentee" },
     ];
     result.owner_involvement = null;
     for (const { pattern, label } of ownerPatterns) {
