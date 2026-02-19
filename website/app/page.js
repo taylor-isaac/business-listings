@@ -12,6 +12,13 @@ function scoreColor(score) {
   return "text-red-400";
 }
 
+function multipleColor(m) {
+  if (m == null) return "text-gray-500";
+  if (m <= 3) return "text-green-400";
+  if (m <= 5) return "text-yellow-400";
+  return "text-red-400";
+}
+
 export default async function Home() {
   const listings = await getListings();
 
@@ -30,8 +37,10 @@ export default async function Home() {
               <th className="py-3 pr-4 font-medium text-right">Score</th>
               <th className="py-3 pr-4 font-medium">State</th>
               <th className="py-3 pr-4 font-medium text-right">Asking Price</th>
-              <th className="py-3 pr-4 font-medium text-right">Gross Revenue</th>
+              <th className="py-3 pr-4 font-medium text-right">Revenue</th>
               <th className="py-3 pr-4 font-medium text-right">Cash Flow</th>
+              <th className="py-3 pr-4 font-medium text-right">Multiple</th>
+              <th className="py-3 pr-4 font-medium text-right">Employees</th>
               <th className="py-3 pr-4 font-medium">Owner</th>
               <th className="py-3 pr-4 font-medium">Recurring</th>
               <th className="py-3 font-medium">Years</th>
@@ -68,11 +77,23 @@ export default async function Home() {
                 <td className="py-3 pr-4 text-right">
                   {formatMoney(listing.asking_price)}
                 </td>
-                <td className="py-3 pr-4 text-right font-medium text-green-400">
+                <td className="py-3 pr-4 text-right">
                   {formatMoney(listing.gross_revenue)}
                 </td>
                 <td className="py-3 pr-4 text-right">
                   {formatMoney(listing.cash_flow_sde)}
+                </td>
+                <td className="py-3 pr-4 text-right font-medium">
+                  {listing.sde_multiple != null ? (
+                    <span className={multipleColor(listing.sde_multiple)}>
+                      {listing.sde_multiple.toFixed(1)}x
+                    </span>
+                  ) : (
+                    <span className="text-gray-500">—</span>
+                  )}
+                </td>
+                <td className="py-3 pr-4 text-right text-gray-300">
+                  {listing.num_employees != null ? listing.num_employees : "—"}
                 </td>
                 <td className="py-3 pr-4 text-gray-300">
                   {listing.owner_involvement || "—"}
