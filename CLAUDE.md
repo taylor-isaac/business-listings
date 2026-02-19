@@ -7,6 +7,8 @@ Monorepo with two components that share a Supabase `listings` table:
 
 **IMPORTANT: When working on a new feature or bug fix, always create a git branch first. Work on changes in that branch for the remainder of the session.**
 
+**IMPORTANT: Before pushing to GitHub, ask the user if they want to update any CLAUDE.md files or documentation to reflect the changes made in this session. This includes the root CLAUDE.md, component-specific CLAUDE.md files (ingest/, website/), and .claude/docs/architectural_patterns.md.**
+
 ## Project Goals
 
 **Vision:** Aggregate business-for-sale listings daily, extract and score key signals, and surface the best opportunities on a ranked website.
