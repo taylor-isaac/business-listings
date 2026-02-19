@@ -18,14 +18,14 @@ export async function humanScroll(page) {
   }
 }
 
-/** Delay between detail page visits: 2–5 seconds */
-export const detailDelay = () => randomDelay(2000, 5000);
+/** Delay between detail page visits: 5–10 seconds */
+export const detailDelay = () => randomDelay(5000, 10000);
 
-/** Delay between search result pages: 3–7 seconds */
-export const searchDelay = () => randomDelay(3000, 7000);
+/** Delay between search result pages: 7–12 seconds */
+export const searchDelay = () => randomDelay(7000, 12000);
 
 /** Longer pause every N pages to avoid patterns */
-export const longPause = () => randomDelay(10000, 20000);
+export const longPause = () => randomDelay(20000, 40000);
 
 /** How many pages before a long pause */
-export const LONG_PAUSE_INTERVAL = 10;
+export const LONG_PAUSE_INTERVAL = 8;
