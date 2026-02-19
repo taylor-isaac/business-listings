@@ -48,3 +48,20 @@ See the root [CLAUDE.md](../CLAUDE.md) for the full column schema.
 Listings are sorted by `index_score` (descending, nulls last). The score is computed
 by the ingest scoring system and stored on `listings.index_score`. The full signal
 breakdown is available in the `listing_scores` table if needed for detail views.
+
+### Data flow for displayed columns
+
+Most columns come directly from `listings` table fields (asking_price, cash_flow_sde,
+num_employees, owner_involvement, sba_preapproval, has_recurring_revenue, num_years, etc.).
+
+Three columns are derived from the `listing_scores.signals` JSONB and flattened in
+`lib/supabase.js` during the query:
+- `sde_multiple` — from `signals.sde_multiple.value`
+- `reason_for_sale` — from `signals.reason_for_sale.value`
+- `price_revenue_ratio` — from `signals.price_revenue_ratio.value`
+
+### Current table columns
+
+Industry (link to source), Score, State, Asking Price, Revenue, Cash Flow, SDE Multiple,
+Employees, Owner Involvement, Reason for Sale, SBA Pre-qualified, Price/Revenue Ratio,
+Recurring Revenue, Years in Business

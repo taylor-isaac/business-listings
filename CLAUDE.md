@@ -16,28 +16,32 @@ Monorepo with two components that share a Supabase `listings` table:
 - Industry: Cleaning businesses (current), expanding to all service businesses once the scraper is stable
 - Source: BizBuySell (current), expanding to multiple listing sites (BizQuest, BusinessBroker.net, etc.)
 
-**Scoring & ranking (implemented):**
+**Scoring & ranking (v2 — implemented):**
 - Each listing gets an **index score** (0–100) based on weighted signals
 - Signal weights are defined in `ingest/lib/weights.mjs` (configurable, not hardcoded)
 - Signals extracted from description text and structured fields:
-  - SDE multiple (price relative to earnings) — weight 20
+  - SDE multiple (price relative to earnings) — weight 25
+  - Data completeness (penalize missing financials) — weight 20
   - Owner involvement level (absentee → owner-operated) — weight 15
-  - Recurring revenue (contracts, subscriptions) — weight 15
-  - Growth potential indicators — weight 10
-  - Data completeness (penalize missing financials) — weight 10
-  - Reason for sale (retiring, relocation vs declining) — weight 8
-  - SBA pre-qualification — weight 7
-  - Lease terms (favorable → unfavorable) — weight 5
+  - Recurring revenue (contracts, subscriptions) — weight 12
+  - Employee count (proxy for transferability) — weight 12
+  - Reason for sale (retiring, relocation vs declining) — weight 10
+  - Years in business (longevity = stability) — weight 8
+  - SBA pre-qualification — weight 5
+  - Description quality (proxy for seller seriousness) — weight 5
+  - Price/revenue ratio (catches overpriced or suspicious listings) — weight 5
   - Customer concentration risk (negative signal) — weight 5
-  - Employee dependency (negative signal) — weight 5
+  - Growth potential indicators — weight 3
+  - Lease terms (favorable → unfavorable) — weight 3
+- v2 key behavior: SDE multiple and data completeness score **0.0** (not null) when earnings data is missing — they stay in the denominator and actively penalize incomplete listings
 - To rescore all listings after changing weights: `cd ingest && npm run score`
 - The scoring model is evolving — new signals can be added without schema changes
 
 **Website experience:**
 - Hybrid: ranked list with filtering/sorting capabilities
 - Listings sorted by index score by default
-- Key metrics visible at a glance (price, revenue, cash flow, score)
-- Ability to filter/sort by individual signals
+- Columns displayed: Industry (link), Score, State, Asking Price, Revenue, Cash Flow, SDE Multiple, Employees, Owner Involvement, Reason for Sale, SBA Pre-qualified, Price/Revenue Ratio, Recurring Revenue, Years in Business
+- Scoring signals (reason_for_sale, price_revenue_ratio) are pulled from `listing_scores.signals` JSONB; other fields come directly from the `listings` table
 
 **Workflow:**
 - Scraper is run manually — triggered by the user to check for new listings

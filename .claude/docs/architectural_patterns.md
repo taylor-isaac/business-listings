@@ -49,17 +49,34 @@ Multiple techniques are layered across files:
 
 ## Multi-Source Data Extraction
 
-Detail page extraction ([detail.mjs:9-207](../../ingest/lib/detail.mjs#L9-L207)) uses a
+Detail page extraction ([detail.mjs](../../ingest/lib/detail.mjs)) uses a
 layered fallback strategy:
 
 1. **JSON-LD structured data** — Most stable source for location and industry
-   ([detail.mjs:17-40](../../ingest/lib/detail.mjs#L17-L40))
 2. **Regex on full page text** — `extractLabeledMoney()` for financial fields
-   ([detail.mjs:76-81](../../ingest/lib/detail.mjs#L76-L81))
 3. **DOM dt/dd and span selectors** — `findValue()` helper as final fallback
-   ([detail.mjs:43-70](../../ingest/lib/detail.mjs#L43-L70))
 
 When adding new extraction fields, follow this same priority order.
+
+### Common Extraction Pitfalls
+
+These bugs have been encountered and fixed — watch for them when adding new patterns:
+
+- **Parenthetical annotations**: BizBuySell often uses labels like `"Cash Flow (SDE): $120,000"`.
+  Regex must skip `(...)` between label and value. The `extractLabeledMoney()` function handles
+  this with `\)?(?:\s*\([^)]*\))?` after the label.
+- **Colon separators**: Structured fields render as `"Established: 1930"` in innerText. Use
+  `[:\s]+` instead of `\s+` after keywords to match both whitespace and colons.
+- **Noun vs adjective word forms**: "SBA pre-approval" (noun) vs "SBA pre-approved" (adjective).
+  Use stem matching like `(?:qualifi|approv)\w*` instead of exact words.
+- **K/M suffixes**: Values like `"$178K"` or `"$1.2M"` must be detected and multiplied.
+  Both `extractLabeledMoney()` and `parseMoneyToNumber()` handle this.
+- **Connector words**: Values like `"SDE of ~$178K"` have words between label and dollar sign.
+  The regex allows optional `(?:of|is|was|at)` between label and value.
+- **Description vs structured fields**: Some values only appear in the page's structured
+  DOM elements (sidebar/header), not in `description_text`. If a value is missing from the stored
+  description, re-scraping is the only fix. Check the DB `description_text` first before assuming
+  a regex bug.
 
 ## Pattern-Based Signal Detection
 
@@ -77,13 +94,20 @@ description text, store as a column on the listing row.
 ## Module Dependency Flow
 
 ```
-scrape.mjs (orchestrator)
+scrape.mjs (orchestrator — extracts + scores inline)
   ├── lib/browser.mjs    ← lib/delays.mjs
   ├── lib/search.mjs     ← lib/delays.mjs
   ├── lib/detail.mjs     ← lib/parse.mjs, lib/delays.mjs
+  ├── lib/signals.mjs    (description-based signal extraction)
+  ├── lib/weights.mjs    (signal weights + scoring algorithm)
   ├── lib/supabase.mjs   (standalone — reads env vars)
   ├── lib/checkpoint.mjs (standalone — file I/O)
   └── lib/delays.mjs     (standalone — no deps)
+
+score.mjs (standalone rescorer)
+  ├── lib/signals.mjs
+  ├── lib/weights.mjs
+  └── lib/supabase.mjs
 ```
 
 All modules export pure async functions. The Playwright `page` object is passed
