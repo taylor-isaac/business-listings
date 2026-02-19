@@ -42,6 +42,9 @@ export default async function Home() {
               <th className="py-3 pr-4 font-medium text-right">Multiple</th>
               <th className="py-3 pr-4 font-medium text-right">Employees</th>
               <th className="py-3 pr-4 font-medium">Owner</th>
+              <th className="py-3 pr-4 font-medium">Reason for Sale</th>
+              <th className="py-3 pr-4 font-medium">SBA</th>
+              <th className="py-3 pr-4 font-medium text-right">P/Rev</th>
               <th className="py-3 pr-4 font-medium">Recurring</th>
               <th className="py-3 font-medium">Years</th>
             </tr>
@@ -97,6 +100,21 @@ export default async function Home() {
                 </td>
                 <td className="py-3 pr-4 text-gray-300">
                   {listing.owner_involvement || "—"}
+                </td>
+                <td className="py-3 pr-4 text-gray-300">
+                  {listing.reason_for_sale || "—"}
+                </td>
+                <td className="py-3 pr-4">
+                  {listing.sba_preapproval ? (
+                    <span className="text-green-400">Yes</span>
+                  ) : (
+                    <span className="text-gray-500">No</span>
+                  )}
+                </td>
+                <td className="py-3 pr-4 text-right text-gray-300">
+                  {listing.price_revenue_ratio != null
+                    ? `${listing.price_revenue_ratio.toFixed(2)}x`
+                    : "—"}
                 </td>
                 <td className="py-3 pr-4">
                   {listing.has_recurring_revenue ? (

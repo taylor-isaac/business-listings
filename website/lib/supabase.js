@@ -15,12 +15,14 @@ export async function getListings() {
 
   if (error) throw error;
 
-  // Flatten: pull sde_multiple from the signals JSONB
+  // Flatten: pull scoring signals from the JSONB
   return data.map((row) => {
     const signals = row.listing_scores?.[0]?.signals ?? {};
     return {
       ...row,
       sde_multiple: signals.sde_multiple?.value ?? null,
+      reason_for_sale: signals.reason_for_sale?.value ?? null,
+      price_revenue_ratio: signals.price_revenue_ratio?.value ?? null,
     };
   });
 }

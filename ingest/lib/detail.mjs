@@ -77,8 +77,10 @@ export async function extractListingData(page, url) {
       // Match patterns like:
       //   "Cash Flow: $178,000"   "SDE: ~$178K"   "SDE of ~$178K"
       //   "Revenue $1.2M"         "EBITDA: $250,000"
+      //   "Seller's Discretionary Earnings (SDE): ~$290,000"
+      //   "(SDE): ~$290,000"  (label found inside parens)
       const re = new RegExp(
-        label + "(?:\\s+(?:of|is|was|at))?[:\\s]*~?\\s*\\$([0-9,.]+)(K|M)?",
+        label + "\\)?(?:\\s*\\([^)]*\\))?(?:\\s+(?:of|is|was|at))?[:\\s]*~?\\s*\\$([0-9,.]+)(K|M)?",
         "i"
       );
       const m = text.match(re);
@@ -108,13 +110,19 @@ export async function extractListingData(page, url) {
     result.num_years_raw = findValue("Year Established") || findValue("Established") || findValue("Years in Business") || findValue("Years");
     if (!result.num_years_raw) {
       // "Established in 2006" / "Founded in 1984" / "Operating since 2010"
-      const estMatch = allText.match(/(?:established|founded|operating|in business)\s+(?:in\s+|since\s+)?(\d{4})/i);
+      // "Established: 1930" / "Year Established: 1984" (colon-separated)
+      const estMatch = allText.match(/(?:established|founded|operating|in business)[:\s]+(?:in\s+|since\s+)?(\d{4})/i);
       if (estMatch) result.num_years_raw = estMatch[1];
     }
     if (!result.num_years_raw) {
-      // "Established in the 1980s" → use decade start
-      const decadeMatch = allText.match(/(?:established|founded|operating|in business)\s+(?:in\s+)?(?:the\s+)?(\d{4})s/i);
+      // "Established in the 1980s" / "Established: the 1930s" → use decade start
+      const decadeMatch = allText.match(/(?:established|founded|operating|in business)[:\s]+(?:in\s+)?(?:the\s+)?(\d{4})s/i);
       if (decadeMatch) result.num_years_raw = decadeMatch[1];
+    }
+    if (!result.num_years_raw) {
+      // "since the 1930s" / "since 1984" — standalone "since" without established/founded prefix
+      const sinceMatch = allText.match(/since\s+(?:the\s+)?(\d{4})s?/i);
+      if (sinceMatch) result.num_years_raw = sinceMatch[1];
     }
     if (!result.num_years_raw) {
       // "20 years in business" / "15+ years established"
@@ -136,10 +144,11 @@ export async function extractListingData(page, url) {
     result.sba_preapproval_raw = findValue("SBA") || findValue("Pre-Qualified");
     if (!result.sba_preapproval_raw) {
       const sbaPatterns = [
-        /SBA\s+pre[- ]?(?:qualified|approved)/i,
-        /pre[- ]?(?:qualified|approved)\s+(?:for\s+)?SBA/i,
+        /SBA\s+pre[- ]?(?:qualifi|approv)\w*/i,
+        /pre[- ]?(?:qualifi|approv)\w*\s+(?:for\s+)?SBA/i,
         /(?:eligible|approved)\s+for\s+SBA\s+(?:financing|loan)/i,
         /SBA\s+financing\s+(?:available|eligible)/i,
+        /SBA\s+(?:loan|lending)\s+(?:available|eligible|ready)/i,
       ];
       for (const pat of sbaPatterns) {
         const m = allText.match(pat);
