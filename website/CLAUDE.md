@@ -40,6 +40,13 @@ SUPABASE_URL=<from root .env>
 SUPABASE_SERVICE_ROLE_KEY=<from root .env>
 ```
 
+## Skills Reference
+
+When building or modifying the frontend, consult these global skills for best practices:
+
+- **Frontend Design** — Creative, production-grade UI that avoids generic AI aesthetics: `~/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md`
+- **Vercel React Best Practices** — 57 performance rules for React/Next.js (waterfalls, bundle size, SSR, re-renders): `~/.agents/skills/vercel-react-best-practices/SKILL.md`
+
 ## Data Source
 
 This website reads from the `listings` table populated by the `ingest/` scraper.

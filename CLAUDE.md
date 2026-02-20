@@ -88,6 +88,13 @@ Each component has its own `CLAUDE.md` with component-specific instructions:
 - [ingest/CLAUDE.md](ingest/CLAUDE.md) — Scraper tech stack, commands, pipeline phases
 - [website/CLAUDE.md](website/CLAUDE.md) — Website best practices and conventions
 
+## Skills Reference
+
+Global skills with best practices relevant to this project (installed in `~/.agents/skills/` and `~/.claude/plugins/`):
+
+- **Supabase Postgres Best Practices** — Query optimization, indexing, RLS, schema design: `~/.agents/skills/supabase-postgres-best-practices/SKILL.md`
+- **Frontend Design** + **Vercel React Best Practices** — See [website/CLAUDE.md](website/CLAUDE.md) for frontend-specific skills
+
 ## Additional Documentation
 
 - [.claude/docs/architectural_patterns.md](.claude/docs/architectural_patterns.md) — Pipeline architecture, retry/checkpoint patterns, anti-bot strategies, data extraction conventions
