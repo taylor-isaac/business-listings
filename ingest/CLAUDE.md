@@ -103,6 +103,39 @@ doesn't account for a formatting variant on the live page. Check the stored `des
 Supabase first — if the value is there, the regex can be fixed. If not, the value is only in
 structured page fields and requires re-scraping.
 
+## IP Blocking & VPN Playbook
+
+BizBuySell's Akamai WAF blocks IPs that scrape too aggressively. When blocked, all devices on the same network get HTTP 500 errors (not 403). **This is IP-level blocking, not device-level.**
+
+### Before scraping
+
+1. Check VPN status: `scutil --nc status "ProtonVPN"` (should say `Connected`)
+2. If not connected, tell the user to enable ProtonVPN before proceeding
+3. **Never run the scraper without VPN** — it burns the user's real IP
+
+### Detecting a block during scraping
+
+The scraper's `retry()` already detects HTTP 500 and `ERR_HTTP_RESPONSE_CODE_FAILURE`. If a block is detected:
+1. The scraper pauses and saves checkpoint (existing behavior)
+2. **Tell the user** to switch ProtonVPN to a different server in the app
+3. Re-run the scraper — it resumes from checkpoint automatically
+
+### VPN CLI commands (macOS)
+
+```bash
+scutil --nc status "ProtonVPN"    # Check: Connected / Disconnected
+scutil --nc list                  # List all VPN services
+```
+
+**Cannot disconnect/reconnect ProtonVPN from CLI** — it uses a WireGuard system extension running as root. The user must toggle in the ProtonVPN app. AppleScript UI control would require Accessibility permissions for Terminal (not currently granted).
+
+### If the user's IP is already blocked
+
+1. Toggle ProtonVPN on (or switch servers) — this gives a new IP immediately
+2. The block on the original IP typically expires within 24-48 hours
+3. Public WiFi IPs may unblock faster since Akamai avoids blocking shared IPs long-term
+4. **Do NOT restart the scraper on the blocked IP** — it will fail on homepage warmup and waste time
+
 ## Additional Documentation
 
 - [../.claude/docs/architectural_patterns.md](../.claude/docs/architectural_patterns.md) — Pipeline architecture, retry/checkpoint patterns, anti-bot strategies, data extraction conventions

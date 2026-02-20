@@ -20,6 +20,7 @@ export default async function Home() {
           <thead>
             <tr className="border-b border-[#00ff41]/30 text-left">
               <th className="py-3 pr-4">Industry</th>
+              <th className="py-3 pr-4">Source</th>
               <th className="py-3 pr-4 text-right">Score</th>
               <th className="py-3 pr-4">State</th>
               <th className="py-3 pr-4 text-right">Asking Price</th>
@@ -43,12 +44,20 @@ export default async function Home() {
               >
                 <td className="py-3 pr-4">
                   <a
-                    href={listing.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={`/listing/${listing.id}`}
                     className="underline hover:opacity-70"
                   >
                     {listing.industry || "Unknown"}
+                  </a>
+                </td>
+                <td className="py-3 pr-4">
+                  <a
+                    href={listing.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline opacity-50 hover:opacity-100"
+                  >
+                    BizBuySell
                   </a>
                 </td>
                 <td className="py-3 pr-4 text-right">

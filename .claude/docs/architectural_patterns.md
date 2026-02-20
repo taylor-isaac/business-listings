@@ -49,15 +49,21 @@ Multiple techniques are layered across files:
 
 ### Confirmed WAF Behavior
 
-- **HTTP 500 ≠ server down**: BizBuySell's Akamai WAF returns HTTP 500 (not 403) when
-  it flags automated traffic. The site may load fine on other devices (e.g. phone on the
-  same Wi-Fi) while returning 500s to the Playwright-controlled browser. Always verify
-  by checking the site from another device before assuming a real server outage.
+- **HTTP 500 = IP block, not server down**: BizBuySell's Akamai WAF returns HTTP 500
+  (not 403) when it flags automated traffic. This is **IP-level blocking** — all devices
+  on the same network (laptop, phone, etc.) will get 500 errors. Confirm by testing with
+  a VPN: if the site loads with VPN on but not off, the IP is blocked.
 - **Session tainting**: Once a Chrome profile is flagged, subsequent requests continue
   to fail. Deleting `.chrome-profile/` and restarting with a fresh profile can resolve this.
-- **Recovery**: After being flagged, wait 15-30 minutes before re-running. The flag
-  appears to be tied to both IP and browser fingerprint — clearing only the profile may
-  not be enough if the IP is also flagged.
+- **Recovery**: Switching to a VPN (ProtonVPN is installed) gives a new IP immediately.
+  The block on the original IP typically expires within 24-48 hours. Public WiFi IPs
+  may unblock faster.
+- **Prevention**: Always run the scraper with ProtonVPN connected. Check with
+  `scutil --nc status "ProtonVPN"` before starting. If blocked mid-scrape, tell the user
+  to switch ProtonVPN servers, then re-run (checkpoint handles resumption).
+- **VPN limitation**: ProtonVPN uses a WireGuard system extension on macOS — it cannot
+  be connected/disconnected via CLI. The user must toggle it in the ProtonVPN app.
+  `scutil --nc status "ProtonVPN"` can read status but `scutil --nc stop/start` has no effect.
 
 ## Multi-Source Data Extraction
 

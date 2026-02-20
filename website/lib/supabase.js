@@ -6,6 +6,25 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
+export async function getListingById(id) {
+  const { data, error } = await supabase
+    .from("listings")
+    .select("*, listing_scores(signals)")
+    .eq("id", id)
+    .single();
+
+  if (error) throw error;
+
+  const signals = data.listing_scores?.[0]?.signals ?? {};
+  return {
+    ...data,
+    signals,
+    sde_multiple: signals.sde_multiple?.value ?? null,
+    reason_for_sale: signals.reason_for_sale?.value ?? null,
+    price_revenue_ratio: signals.price_revenue_ratio?.value ?? null,
+  };
+}
+
 export async function getListings() {
   const { data, error } = await supabase
     .from("listings")
