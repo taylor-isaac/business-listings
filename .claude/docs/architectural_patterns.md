@@ -55,6 +55,8 @@ layered fallback strategy:
 1. **JSON-LD structured data** — Most stable source for location and industry
 2. **Regex on full page text** — `extractLabeledMoney()` for financial fields
 3. **DOM dt/dd and span selectors** — `findValue()` helper as final fallback
+   - Searches: `.listingProfile_details span`, `.details-item`, `.bfsListing_headerRow span`,
+     `.price span`, `[class*='financial'] span`, `[class*='Financial'] span`
 
 When adding new extraction fields, follow this same priority order.
 
@@ -77,6 +79,16 @@ These bugs have been encountered and fixed — watch for them when adding new pa
   DOM elements (sidebar/header), not in `description_text`. If a value is missing from the stored
   description, re-scraping is the only fix. Check the DB `description_text` first before assuming
   a regex bug.
+- **findValue() parent container collision**: `findValue()` uses `span.closest("div, li, tr")`
+  then `parent.querySelector(".price, ...")` to find value elements. If a label span (e.g.
+  "Established:") shares a parent with a `.price` container, it can return the wrong value
+  (e.g. "$1,999,950" instead of "1999"). Guard against this by rejecting money-formatted
+  values where they don't make sense (e.g. `if (/^\$/.test(result)) result = null`).
+- **Structured fields not reaching signals.mjs**: BizBuySell puts "Reason for Selling" in
+  dt/dd fields, not in `description_text`. Since `signals.mjs` only searches description text,
+  these must be appended to `description_text` during extraction in `detail.mjs`.
+- **Health pattern variants**: Reason-for-sale "health" regex must cover all forms:
+  `health\s+(reasons?|issues?|concerns?|conditions?|problems?)`. Real listings use all of these.
 
 ## Pattern-Based Signal Detection
 
@@ -108,6 +120,12 @@ score.mjs (standalone rescorer)
   ├── lib/signals.mjs
   ├── lib/weights.mjs
   └── lib/supabase.mjs
+
+debug-scrape.mjs (single-URL debugger)
+  ├── lib/browser.mjs
+  ├── lib/detail.mjs
+  ├── lib/signals.mjs
+  └── lib/delays.mjs
 ```
 
 All modules export pure async functions. The Playwright `page` object is passed

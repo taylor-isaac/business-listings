@@ -15,6 +15,7 @@ them into the Supabase `listings` table. Targets businesses with $750K-$1M gross
 ```
 scrape.mjs                # Main entry — orchestrates 3-phase pipeline + inline scoring
 score.mjs                 # Standalone scorer — rescores all listings from DB
+debug-scrape.mjs          # Debug tool — loads single URL, dumps extraction results
 upsert-test.mjs           # Standalone DB connectivity smoke test
 lib/
   browser.mjs             # Playwright launch with persistent Chrome profile
@@ -36,6 +37,7 @@ All commands run from this (`ingest/`) directory:
 npm install                 # Install dependencies
 npm run scrape              # Run full scrape pipeline (extracts + scores new listings)
 npm run score               # Rescore all existing listings (after weight changes)
+node debug-scrape.mjs <url> # Debug a single listing — dumps DOM fields + extraction results
 ```
 
 **IMPORTANT: Do NOT run `upsert-test.mjs` or any plain HTTP fetch against BizBuySell. The site blocks non-browser requests with 403 errors. All scraping must go through Playwright via `scrape.mjs`. Only use `node --env-file=.env analyze-listings.mjs` to verify database contents.**
@@ -91,10 +93,15 @@ the full page text (`document.body.innerText`) with regex, falling back to DOM-b
 - Standalone "since" patterns: `"since the 1930s"`, `"since 1984"`
 - SBA all word forms: `"SBA pre-approved"`, `"SBA pre-approval"`, `"SBA pre-qualification"`
 
-**When fixing extraction bugs:** The root cause is almost always that the regex doesn't account
-for a formatting variant on the live page. Check the stored `description_text` in Supabase first —
-if the value is there, the regex can be fixed. If not, the value is only in structured page fields
-and requires re-scraping.
+**Description enrichment:** BizBuySell puts "Reason for Selling" in structured dt/dd fields, not
+in the description text. During extraction, `detail.mjs` appends this structured field to
+`description_text` so that `signals.mjs` can extract `reason_for_sale` during scoring.
+
+**When fixing extraction bugs:** Use `node debug-scrape.mjs <url>` to see exactly how the page
+renders and what the extraction pipeline produces. The root cause is almost always that the regex
+doesn't account for a formatting variant on the live page. Check the stored `description_text` in
+Supabase first — if the value is there, the regex can be fixed. If not, the value is only in
+structured page fields and requires re-scraping.
 
 ## Additional Documentation
 
