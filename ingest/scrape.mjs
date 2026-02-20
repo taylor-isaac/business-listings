@@ -6,9 +6,12 @@ import { loadCheckpoint, saveCheckpoint, clearCheckpoint } from "./lib/checkpoin
 import { detailDelay, longPause, LONG_PAUSE_INTERVAL } from "./lib/delays.mjs";
 import { extractSignals } from "./lib/signals.mjs";
 import { calculateScore } from "./lib/weights.mjs";
+import { validateExtraction } from "./lib/validate.mjs";
 
 const MAX_RETRIES = 3;
 const UPSERT_BATCH_SIZE = 5;
+const PROCESS_TIMEOUT_MS = 30 * 60 * 1000; // 30 min safety net
+const BROWSER_CLOSE_TIMEOUT_MS = 15_000;    // 15s to close browser
 
 async function retry(fn, label) {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -76,6 +79,7 @@ async function main() {
       try {
         const data = await retry(() => extractListingData(page, url), `detail:${url}`);
         const extracted = extractSignals(data.description_text, data);
+        validateExtraction(data, extracted);
         const { index_score } = calculateScore({ ...data, ...extracted });
         buffer.push({ ...data, index_score });
         console.log(`[extract] (${processed}/${pending.length}) ${data.source_listing_id} — ${data.state || "?"} — $${data.gross_revenue?.toLocaleString() || "?"}`);
@@ -133,8 +137,30 @@ async function main() {
     console.error("[checkpoint] Progress saved. Re-run to resume.");
     process.exitCode = 1;
   } finally {
-    await browser.close();
+    // Force-close browser with a timeout so a hung Chrome doesn't keep Node alive
+    try {
+      await Promise.race([
+        browser.close(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("browser.close() timed out")), BROWSER_CLOSE_TIMEOUT_MS)
+        ),
+      ]);
+    } catch (closeErr) {
+      console.error(`[cleanup] ${closeErr.message} — forcing exit`);
+    }
   }
 }
 
-main();
+// Safety net: kill the process if it hangs beyond the timeout
+const killTimer = setTimeout(() => {
+  console.error(`[TIMEOUT] Process exceeded ${PROCESS_TIMEOUT_MS / 60000}min safety limit — forcing exit`);
+  process.exit(2);
+}, PROCESS_TIMEOUT_MS);
+killTimer.unref(); // don't let this timer alone keep Node alive
+
+main()
+  .then(() => process.exit(process.exitCode || 0))
+  .catch((err) => {
+    console.error(`[FATAL] Unhandled: ${err.message}`);
+    process.exit(1);
+  });

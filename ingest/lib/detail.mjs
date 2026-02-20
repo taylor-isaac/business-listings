@@ -146,20 +146,18 @@ export async function extractListingData(page, url) {
     }
 
     // --- SBA pre-approval (search description text, not just DOM) ---
-    result.sba_preapproval_raw = findValue("SBA") || findValue("Pre-Qualified");
-    if (!result.sba_preapproval_raw) {
-      const sbaPatterns = [
-        /SBA\s+pre[- ]?(?:qualifi|approv)\w*/i,
-        /pre[- ]?(?:qualifi|approv)\w*\s+(?:for\s+)?SBA/i,
-        /(?:eligible|approved)\s+for\s+SBA\s+(?:financing|loan)/i,
-        /SBA\s+financing\s+(?:available|eligible)/i,
-        /SBA\s+(?:loan|lending)\s+(?:available|eligible|ready)/i,
-      ];
-      for (const pat of sbaPatterns) {
-        const m = allText.match(pat);
-        if (m) { result.sba_preapproval_raw = m[0]; break; }
-      }
-    }
+    // Check all SBA indicators — any match means SBA financing is available
+    const sbaFromDom = findValue("SBA") || findValue("Pre-Qualified") || findValue("SBA Pre-Qualified");
+    const sbaPatterns = [
+      /SBA\s+pre[- ]?(?:qualifi|approv)\w*/i,
+      /pre[- ]?(?:qualifi|approv)\w*\s+(?:for\s+)?SBA/i,
+      /(?:eligible|approved)\s+for\s+SBA\s+(?:financing|loan)/i,
+      /SBA\s+financing\s+(?:available|eligible)/i,
+      /SBA\s+(?:loan|lending)\s+(?:available|eligible|ready)/i,
+    ];
+    const sbaFromText = sbaPatterns.some(pat => pat.test(allText));
+    // Store as boolean directly — never send raw strings to the DB
+    result.sba_preapproval = !!(sbaFromDom || sbaFromText);
 
     // State fallback 1: look for state in the header breadcrumb area
     if (!result.state) {
@@ -352,7 +350,7 @@ export async function extractListingData(page, url) {
     num_employees: numEmployees,
     num_years: numYears,
     support_training: raw.support_training_raw || null,
-    sba_preapproval: raw.sba_preapproval_raw || null,
+    sba_preapproval: raw.sba_preapproval === true,
     description_text: raw.description_text || null,
     owner_involvement: raw.owner_involvement || null,
     has_recurring_revenue: raw.has_recurring_revenue || false,

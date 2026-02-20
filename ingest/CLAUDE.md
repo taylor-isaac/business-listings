@@ -52,7 +52,7 @@ In addition to the shared variables in the root CLAUDE.md:
 
 ## Pipeline Phases
 
-The scraper runs three sequential phases (see [scrape.mjs:43-121](scrape.mjs#L43-L121)):
+The scraper runs three sequential phases (see [scrape.mjs:42-133](scrape.mjs#L42-L133)):
 
 1. **Collect** — Paginates search results, deduplicates listing URLs
 2. **Extract** — Visits each detail page, parses financial data, scores inline, upserts in batches

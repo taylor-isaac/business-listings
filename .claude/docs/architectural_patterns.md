@@ -2,7 +2,7 @@
 
 ## Three-Phase Pipeline
 
-The scraper follows a strict Collect → Extract → Report flow ([scrape.mjs:43-121](../../ingest/scrape.mjs#L43-L121)).
+The scraper follows a strict Collect → Extract → Report flow ([scrape.mjs:42-133](../../ingest/scrape.mjs#L42-L133)).
 Each phase completes before the next begins. This separation lets each phase be
 retried independently and keeps concerns isolated across modules.
 
@@ -14,22 +14,22 @@ State is persisted to `.checkpoint.json` after every significant operation
 - `collectedUrls`: all discovered listing URLs
 - `completedUrls`: URLs that have been successfully processed
 
-On restart, the pipeline skips completed work ([scrape.mjs:45-56](../../ingest/scrape.mjs#L45-L56)).
-On success, the checkpoint is cleared ([scrape.mjs:120](../../ingest/scrape.mjs#L120)).
+On restart, the pipeline skips completed work ([scrape.mjs:54-65](../../ingest/scrape.mjs#L54-L65)).
+On success, the checkpoint is cleared ([scrape.mjs:132](../../ingest/scrape.mjs#L132)).
 On fatal error, the checkpoint is saved so the next run resumes
-([scrape.mjs:122-126](../../ingest/scrape.mjs#L122-L126)).
+([scrape.mjs:134-138](../../ingest/scrape.mjs#L134-L138)).
 
 ## Retry with Linear Backoff
 
-The `retry()` wrapper ([scrape.mjs:11-31](../../ingest/scrape.mjs#L11-L31)) retries up to 3 times
+The `retry()` wrapper ([scrape.mjs:16-40](../../ingest/scrape.mjs#L16-L40)) retries up to 3 times
 with linear backoff (`attempt * 5s`). CAPTCHA/403 detection triggers a 60-second
 wait before retry. This pattern wraps both URL collection and detail extraction.
 
 ## Batch Upsert with Buffer
 
 Rows accumulate in an in-memory buffer and flush to Supabase every 5 rows
-([scrape.mjs:89-95](../../ingest/scrape.mjs#L89-L95), [supabase.mjs:20-40](../../ingest/lib/supabase.mjs#L20-L40)).
-Remaining rows flush after the loop ([scrape.mjs:107-111](../../ingest/scrape.mjs#L107-L111)).
+([scrape.mjs:100-107](../../ingest/scrape.mjs#L100-L107), [supabase.mjs:20-40](../../ingest/lib/supabase.mjs#L20-L40)).
+Remaining rows flush after the loop ([scrape.mjs:119-123](../../ingest/scrape.mjs#L119-L123)).
 Upsert uses `onConflict: "source,source_listing_id"` as the composite key.
 
 ## Anti-Bot Detection Strategy
@@ -146,11 +146,26 @@ as a parameter (not imported globally), keeping modules testable and decoupled.
 ## Error Handling Conventions
 
 - **Network/scraping errors**: Logged and continued — one failed listing doesn't
-  stop the pipeline ([scrape.mjs:80-86](../../ingest/scrape.mjs#L80-L86))
+  stop the pipeline ([scrape.mjs:92-98](../../ingest/scrape.mjs#L92-L98))
 - **Database errors**: Thrown immediately — batch integrity is non-negotiable
   ([supabase.mjs:30-33](../../ingest/lib/supabase.mjs#L30-L33))
 - **Fatal errors**: Checkpoint saved, exit code 1
-  ([scrape.mjs:122-126](../../ingest/scrape.mjs#L122-L126))
+  ([scrape.mjs:134-138](../../ingest/scrape.mjs#L134-L138))
+
+## Process Lifecycle & Cleanup
+
+The scraper uses three layers to prevent orphaned Node processes when Chrome fails:
+
+- **`browser.close()` with timeout**: The `finally` block races `browser.close()` against
+  a 15-second deadline. If Chrome is hung and won't close, it gives up and falls through
+  ([scrape.mjs:139-151](../../ingest/scrape.mjs#L139-L151))
+- **Explicit `process.exit()`**: `main()` is called with `.then(() => process.exit(0))`
+  and `.catch(() => process.exit(1))` so dangling timers, unresolved promises, or open
+  handles can never keep the Node process alive after the pipeline finishes or crashes
+  ([scrape.mjs:161-166](../../ingest/scrape.mjs#L161-L166))
+- **30-minute kill timer**: An `.unref()`'d safety-net timeout hard-exits with code 2 if
+  anything hangs indefinitely — retries, WAF wait loops, or a stuck browser
+  ([scrape.mjs:154-158](../../ingest/scrape.mjs#L154-L158))
 
 ## Console Logging Conventions
 
