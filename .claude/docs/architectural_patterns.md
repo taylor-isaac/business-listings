@@ -27,7 +27,7 @@ wait before retry. This pattern wraps both URL collection and detail extraction.
 
 ## Batch Upsert with Buffer
 
-Rows accumulate in an in-memory buffer and flush to Supabase every 50 rows
+Rows accumulate in an in-memory buffer and flush to Supabase every 5 rows
 ([scrape.mjs:89-95](../../ingest/scrape.mjs#L89-L95), [supabase.mjs:20-40](../../ingest/lib/supabase.mjs#L20-L40)).
 Remaining rows flush after the loop ([scrape.mjs:107-111](../../ingest/scrape.mjs#L107-L111)).
 Upsert uses `onConflict: "source,source_listing_id"` as the composite key.
@@ -46,6 +46,18 @@ Multiple techniques are layered across files:
   ([delays.mjs:12-19](../../ingest/lib/delays.mjs#L12-L19))
 - **Randomized delays**: Detail pages 2-5s, search pages 3-7s, long pauses every 10 pages
   ([delays.mjs:22-31](../../ingest/lib/delays.mjs#L22-L31))
+
+### Confirmed WAF Behavior
+
+- **HTTP 500 ≠ server down**: BizBuySell's Akamai WAF returns HTTP 500 (not 403) when
+  it flags automated traffic. The site may load fine on other devices (e.g. phone on the
+  same Wi-Fi) while returning 500s to the Playwright-controlled browser. Always verify
+  by checking the site from another device before assuming a real server outage.
+- **Session tainting**: Once a Chrome profile is flagged, subsequent requests continue
+  to fail. Deleting `.chrome-profile/` and restarting with a fresh profile can resolve this.
+- **Recovery**: After being flagged, wait 15-30 minutes before re-running. The flag
+  appears to be tied to both IP and browser fingerprint — clearing only the profile may
+  not be enough if the IP is also flagged.
 
 ## Multi-Source Data Extraction
 

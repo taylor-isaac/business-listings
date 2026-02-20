@@ -8,7 +8,7 @@ import { extractSignals } from "./lib/signals.mjs";
 import { calculateScore } from "./lib/weights.mjs";
 
 const MAX_RETRIES = 3;
-const UPSERT_BATCH_SIZE = 50;
+const UPSERT_BATCH_SIZE = 5;
 
 async function retry(fn, label) {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
