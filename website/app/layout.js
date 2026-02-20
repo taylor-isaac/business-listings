@@ -1,4 +1,5 @@
 import "./globals.css";
+import MatrixRain from "./matrix-rain";
 
 export const metadata = {
   title: "Business Listings",
@@ -8,8 +9,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="bg-gray-950 text-gray-100 min-h-screen">
-        {children}
+      <body className="bg-black min-h-screen">
+        <MatrixRain />
+        <div style={{ position: "relative", zIndex: 1 }}>{children}</div>
       </body>
     </html>
   );

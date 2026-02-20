@@ -5,76 +5,58 @@ function formatMoney(n) {
   return "$" + n.toLocaleString("en-US");
 }
 
-function scoreColor(score) {
-  if (score >= 70) return "text-green-400";
-  if (score >= 50) return "text-yellow-400";
-  if (score >= 30) return "text-orange-400";
-  return "text-red-400";
-}
-
-function multipleColor(m) {
-  if (m == null) return "text-gray-500";
-  if (m <= 3) return "text-green-400";
-  if (m <= 5) return "text-yellow-400";
-  return "text-red-400";
-}
-
 export default async function Home() {
   const listings = await getListings();
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-1">Business Listings</h1>
-      <p className="text-gray-400 text-sm mb-6">
+      <h1 className="text-3xl mb-1">Business Listings</h1>
+      <p className="mb-6 opacity-70">
         {listings.length} active listings &middot; Sorted by index score
       </p>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-800 text-gray-400 text-left">
-              <th className="py-3 pr-4 font-medium">Industry</th>
-              <th className="py-3 pr-4 font-medium text-right">Score</th>
-              <th className="py-3 pr-4 font-medium">State</th>
-              <th className="py-3 pr-4 font-medium text-right">Asking Price</th>
-              <th className="py-3 pr-4 font-medium text-right">Revenue</th>
-              <th className="py-3 pr-4 font-medium text-right">Cash Flow</th>
-              <th className="py-3 pr-4 font-medium text-right">Multiple</th>
-              <th className="py-3 pr-4 font-medium text-right">Employees</th>
-              <th className="py-3 pr-4 font-medium">Owner</th>
-              <th className="py-3 pr-4 font-medium">Reason for Sale</th>
-              <th className="py-3 pr-4 font-medium">SBA</th>
-              <th className="py-3 pr-4 font-medium text-right">P/Rev</th>
-              <th className="py-3 pr-4 font-medium">Recurring</th>
-              <th className="py-3 font-medium">Years</th>
+            <tr className="border-b border-[#00ff41]/30 text-left">
+              <th className="py-3 pr-4">Industry</th>
+              <th className="py-3 pr-4 text-right">Score</th>
+              <th className="py-3 pr-4">State</th>
+              <th className="py-3 pr-4 text-right">Asking Price</th>
+              <th className="py-3 pr-4 text-right">Revenue</th>
+              <th className="py-3 pr-4 text-right">Cash Flow</th>
+              <th className="py-3 pr-4 text-right">Multiple</th>
+              <th className="py-3 pr-4 text-right">Employees</th>
+              <th className="py-3 pr-4">Owner</th>
+              <th className="py-3 pr-4">Reason for Sale</th>
+              <th className="py-3 pr-4">SBA</th>
+              <th className="py-3 pr-4 text-right">P/Rev</th>
+              <th className="py-3 pr-4">Recurring</th>
+              <th className="py-3">Years</th>
             </tr>
           </thead>
           <tbody>
             {listings.map((listing) => (
               <tr
                 key={listing.id}
-                className="border-b border-gray-800/50 hover:bg-gray-900/50"
+                className="border-b border-[#00ff41]/10 hover:bg-[#00ff41]/5"
               >
                 <td className="py-3 pr-4">
                   <a
                     href={listing.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 hover:underline"
+                    className="underline hover:opacity-70"
                   >
                     {listing.industry || "Unknown"}
                   </a>
                 </td>
-                <td className="py-3 pr-4 text-right font-medium">
-                  {listing.index_score != null ? (
-                    <span className={scoreColor(listing.index_score)}>
-                      {listing.index_score.toFixed(1)}
-                    </span>
-                  ) : (
-                    <span className="text-gray-500">—</span>
-                  )}
+                <td className="py-3 pr-4 text-right">
+                  {listing.index_score != null
+                    ? listing.index_score.toFixed(1)
+                    : "—"}
                 </td>
-                <td className="py-3 pr-4 text-gray-300">
+                <td className="py-3 pr-4">
                   {listing.state || "—"}
                 </td>
                 <td className="py-3 pr-4 text-right">
@@ -86,44 +68,32 @@ export default async function Home() {
                 <td className="py-3 pr-4 text-right">
                   {formatMoney(listing.cash_flow_sde)}
                 </td>
-                <td className="py-3 pr-4 text-right font-medium">
-                  {listing.sde_multiple != null ? (
-                    <span className={multipleColor(listing.sde_multiple)}>
-                      {listing.sde_multiple.toFixed(1)}x
-                    </span>
-                  ) : (
-                    <span className="text-gray-500">—</span>
-                  )}
+                <td className="py-3 pr-4 text-right">
+                  {listing.sde_multiple != null
+                    ? `${listing.sde_multiple.toFixed(1)}x`
+                    : "—"}
                 </td>
-                <td className="py-3 pr-4 text-right text-gray-300">
+                <td className="py-3 pr-4 text-right">
                   {listing.num_employees != null ? listing.num_employees : "—"}
                 </td>
-                <td className="py-3 pr-4 text-gray-300">
+                <td className="py-3 pr-4">
                   {listing.owner_involvement || "—"}
                 </td>
-                <td className="py-3 pr-4 text-gray-300">
+                <td className="py-3 pr-4">
                   {listing.reason_for_sale || "—"}
                 </td>
                 <td className="py-3 pr-4">
-                  {listing.sba_preapproval ? (
-                    <span className="text-green-400">Yes</span>
-                  ) : (
-                    <span className="text-gray-500">No</span>
-                  )}
+                  {listing.sba_preapproval ? "Yes" : "No"}
                 </td>
-                <td className="py-3 pr-4 text-right text-gray-300">
+                <td className="py-3 pr-4 text-right">
                   {listing.price_revenue_ratio != null
                     ? `${listing.price_revenue_ratio.toFixed(2)}x`
                     : "—"}
                 </td>
                 <td className="py-3 pr-4">
-                  {listing.has_recurring_revenue ? (
-                    <span className="text-green-400">Yes</span>
-                  ) : (
-                    <span className="text-gray-500">No</span>
-                  )}
+                  {listing.has_recurring_revenue ? "Yes" : "No"}
                 </td>
-                <td className="py-3 text-gray-300">
+                <td className="py-3">
                   {listing.num_years != null ? `${listing.num_years}y` : "—"}
                 </td>
               </tr>
