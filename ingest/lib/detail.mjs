@@ -50,7 +50,7 @@ export async function extractListingData(page, url) {
         }
       }
       // Try span/label pattern common in BizBuySell
-      const spans = document.querySelectorAll(".listingProfile_details span, .details-item, .bfsListing_headerRow span");
+      const spans = document.querySelectorAll(".listingProfile_details span, .details-item, .bfsListing_headerRow span, .price span, [class*='financial'] span, [class*='Financial'] span");
       for (const span of spans) {
         if (span.textContent.trim().toLowerCase().includes(label.toLowerCase())) {
           // Value might be in a sibling or adjacent element
@@ -250,6 +250,17 @@ export async function extractListingData(page, url) {
         if (t.length > 50) proseBlocks.push(t);
       }
       if (proseBlocks.length > 0) result.description_text = proseBlocks.join("\n\n");
+    }
+
+    // --- Enrich description with key structured fields for signal extraction ---
+    // BizBuySell puts "Reason for Selling" in dt/dd, not in the description.
+    // Append it so signals.mjs can extract reason_for_sale.
+    const reasonRaw = findValue("Reason for Selling") || findValue("Reason for Sale");
+    if (reasonRaw && result.description_text) {
+      const already = result.description_text.toLowerCase().includes("reason for sel");
+      if (!already) {
+        result.description_text += "\n\nReason for Selling: " + reasonRaw;
+      }
     }
 
     // --- Owner involvement signal ---
