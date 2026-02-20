@@ -7,6 +7,8 @@ Monorepo with two components that share a Supabase `listings` table:
 
 **IMPORTANT: When working on a new feature or bug fix, always create a git branch first. Work on changes in that branch for the remainder of the session.**
 
+**IMPORTANT: Before pushing to GitHub, ask the user if they want to update any CLAUDE.md files or project documentation (including `.claude/docs/`) to reflect the changes made in this session.**
+
 ## Project Goals
 
 **Vision:** Aggregate business-for-sale listings daily, extract and score key signals, and surface the best opportunities on a ranked website.
@@ -16,21 +18,32 @@ Monorepo with two components that share a Supabase `listings` table:
 - Industry: Cleaning businesses (current), expanding to all service businesses once the scraper is stable
 - Source: BizBuySell (current), expanding to multiple listing sites (BizQuest, BusinessBroker.net, etc.)
 
-**Scoring & ranking:**
-- Each listing gets an **index score** based on weighted signals
-- Signal weights are defined in a **configurable weights file** (not hardcoded) so they can be tuned over time
-- Key signals (not exhaustive — still being refined):
-  - Cash flow / SDE multiple (price relative to earnings)
-  - Absentee / low owner involvement
-  - Recurring revenue (contracts, subscriptions)
-  - Data completeness (penalize listings missing key financials)
-- The scoring model is evolving — expect new signals to be added as patterns emerge
+**Scoring & ranking (v2 — implemented):**
+- Each listing gets an **index score** (0–100) based on weighted signals
+- Signal weights are defined in `ingest/lib/weights.mjs` (configurable, not hardcoded)
+- Signals extracted from description text and structured fields:
+  - SDE multiple (price relative to earnings) — weight 25
+  - Data completeness (penalize missing financials) — weight 20
+  - Owner involvement level (absentee → owner-operated) — weight 15
+  - Recurring revenue (contracts, subscriptions) — weight 12
+  - Employee count (proxy for transferability) — weight 12
+  - Reason for sale (retiring, relocation vs declining) — weight 10
+  - Years in business (longevity = stability) — weight 8
+  - SBA pre-qualification — weight 5
+  - Description quality (proxy for seller seriousness) — weight 5
+  - Price/revenue ratio (catches overpriced or suspicious listings) — weight 5
+  - Customer concentration risk (negative signal) — weight 5
+  - Growth potential indicators — weight 3
+  - Lease terms (favorable → unfavorable) — weight 3
+- v2 key behavior: SDE multiple and data completeness score **0.0** (not null) when earnings data is missing — they stay in the denominator and actively penalize incomplete listings
+- To rescore all listings after changing weights: `cd ingest && npm run score`
+- The scoring model is evolving — new signals can be added without schema changes
 
 **Website experience:**
 - Hybrid: ranked list with filtering/sorting capabilities
 - Listings sorted by index score by default
-- Key metrics visible at a glance (price, revenue, cash flow, score)
-- Ability to filter/sort by individual signals
+- Columns displayed: Industry (link), Score, State, Asking Price, Revenue, Cash Flow, SDE Multiple, Employees, Owner Involvement, Reason for Sale, SBA Pre-qualified, Price/Revenue Ratio, Recurring Revenue, Years in Business
+- Scoring signals (reason_for_sale, price_revenue_ratio) are pulled from `listing_scores.signals` JSONB; other fields come directly from the `listings` table
 
 **Workflow:**
 - Scraper is run manually — triggered by the user to check for new listings
@@ -49,12 +62,24 @@ GitHub Actions secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 
 ## Database Schema
 
-Table: `listings` — upsert conflict key: `(source, source_listing_id)`
+**Table: `listings`** — upsert conflict key: `(source, source_listing_id)`
 
 Key columns: `source`, `source_listing_id`, `url`, `state`, `industry`,
 `asking_price`, `cash_flow_sde`, `gross_revenue`, `ebitda`, `inventory`, `ffe`,
 `num_employees`, `num_years`, `description_text`, `owner_involvement`,
-`has_recurring_revenue`, `content_hash`, `is_active`, `last_seen_at`
+`has_recurring_revenue`, `content_hash`, `is_active`, `last_seen_at`, `index_score`
+
+**Table: `listing_scores`** — one row per listing, unique on `listing_id`
+
+Stores the scoring breakdown separately from raw listing data (hybrid design).
+Columns: `listing_id` (FK → listings.id), `index_score`, `signals` (JSONB), `scored_at`
+
+The `signals` JSONB contains each signal's extracted value and normalized score:
+```json
+{ "sde_multiple": { "value": 2.5, "score": 0.8 }, "owner_involvement": { "value": "semi-absentee", "score": 0.8 }, ... }
+```
+
+`index_score` is denormalized on both tables — `listings.index_score` for fast sorting, `listing_scores.index_score` for the full scoring record.
 
 ## Component Documentation
 

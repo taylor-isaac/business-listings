@@ -50,7 +50,7 @@ export async function extractListingData(page, url) {
         }
       }
       // Try span/label pattern common in BizBuySell
-      const spans = document.querySelectorAll(".listingProfile_details span, .details-item, .bfsListing_headerRow span");
+      const spans = document.querySelectorAll(".listingProfile_details span, .details-item, .bfsListing_headerRow span, .price span, [class*='financial'] span, [class*='Financial'] span");
       for (const span of spans) {
         if (span.textContent.trim().toLowerCase().includes(label.toLowerCase())) {
           // Value might be in a sibling or adjacent element
@@ -74,10 +74,22 @@ export async function extractListingData(page, url) {
     const allText = document.body.innerText;
 
     function extractLabeledMoney(text, label) {
-      // Match "Label: $1,234" or "Label: ~$1,234" (with optional tilde)
-      const re = new RegExp(label + "[:\\s]*~?\\s*\\$([0-9,]+)", "i");
+      // Match patterns like:
+      //   "Cash Flow: $178,000"   "SDE: ~$178K"   "SDE of ~$178K"
+      //   "Revenue $1.2M"         "EBITDA: $250,000"
+      //   "Seller's Discretionary Earnings (SDE): ~$290,000"
+      //   "(SDE): ~$290,000"  (label found inside parens)
+      const re = new RegExp(
+        label + "\\)?(?:\\s*\\([^)]*\\))?(?:\\s+(?:of|is|was|at))?[:\\s]*~?\\s*\\$([0-9,.]+)(K|M)?",
+        "i"
+      );
       const m = text.match(re);
-      return m ? "$" + m[1] : null;
+      if (!m) return null;
+      let raw = m[1].replace(/,/g, "");
+      let num = parseFloat(raw);
+      if (m[2]?.toUpperCase() === "K") num *= 1000;
+      if (m[2]?.toUpperCase() === "M") num *= 1000000;
+      return "$" + Math.round(num).toLocaleString("en-US");
     }
 
     result.asking_price_raw = extractLabeledMoney(allText, "Asking Price") || findValue("Asking Price");
@@ -96,15 +108,26 @@ export async function extractListingData(page, url) {
 
     // --- Year / num_years extraction ---
     result.num_years_raw = findValue("Year Established") || findValue("Established") || findValue("Years in Business") || findValue("Years");
+    // findValue can accidentally match a price element (e.g. "$1,999,950")
+    // when "Established:" shares a parent with .price containers — reject those.
+    if (result.num_years_raw && /^\$/.test(result.num_years_raw)) {
+      result.num_years_raw = null;
+    }
     if (!result.num_years_raw) {
       // "Established in 2006" / "Founded in 1984" / "Operating since 2010"
-      const estMatch = allText.match(/(?:established|founded|operating|in business)\s+(?:in\s+|since\s+)?(\d{4})/i);
+      // "Established: 1930" / "Year Established: 1984" (colon-separated)
+      const estMatch = allText.match(/(?:established|founded|operating|in business)[:\s]+(?:in\s+|since\s+)?(\d{4})/i);
       if (estMatch) result.num_years_raw = estMatch[1];
     }
     if (!result.num_years_raw) {
-      // "Established in the 1980s" → use decade start
-      const decadeMatch = allText.match(/(?:established|founded|operating|in business)\s+(?:in\s+)?(?:the\s+)?(\d{4})s/i);
+      // "Established in the 1980s" / "Established: the 1930s" → use decade start
+      const decadeMatch = allText.match(/(?:established|founded|operating|in business)[:\s]+(?:in\s+)?(?:the\s+)?(\d{4})s/i);
       if (decadeMatch) result.num_years_raw = decadeMatch[1];
+    }
+    if (!result.num_years_raw) {
+      // "since the 1930s" / "since 1984" — standalone "since" without established/founded prefix
+      const sinceMatch = allText.match(/since\s+(?:the\s+)?(\d{4})s?/i);
+      if (sinceMatch) result.num_years_raw = sinceMatch[1];
     }
     if (!result.num_years_raw) {
       // "20 years in business" / "15+ years established"
@@ -123,21 +146,20 @@ export async function extractListingData(page, url) {
     }
 
     // --- SBA pre-approval (search description text, not just DOM) ---
-    result.sba_preapproval_raw = findValue("SBA") || findValue("Pre-Qualified");
-    if (!result.sba_preapproval_raw) {
-      const sbaPatterns = [
-        /SBA\s+pre[- ]?(?:qualified|approved)/i,
-        /pre[- ]?(?:qualified|approved)\s+(?:for\s+)?SBA/i,
-        /(?:eligible|approved)\s+for\s+SBA\s+(?:financing|loan)/i,
-        /SBA\s+financing\s+(?:available|eligible)/i,
-      ];
-      for (const pat of sbaPatterns) {
-        const m = allText.match(pat);
-        if (m) { result.sba_preapproval_raw = m[0]; break; }
-      }
-    }
+    // Check all SBA indicators — any match means SBA financing is available
+    const sbaFromDom = findValue("SBA") || findValue("Pre-Qualified") || findValue("SBA Pre-Qualified");
+    const sbaPatterns = [
+      /SBA\s+pre[- ]?(?:qualifi|approv)\w*/i,
+      /pre[- ]?(?:qualifi|approv)\w*\s+(?:for\s+)?SBA/i,
+      /(?:eligible|approved)\s+for\s+SBA\s+(?:financing|loan)/i,
+      /SBA\s+financing\s+(?:available|eligible)/i,
+      /SBA\s+(?:loan|lending)\s+(?:available|eligible|ready)/i,
+    ];
+    const sbaFromText = sbaPatterns.some(pat => pat.test(allText));
+    // Store as boolean directly — never send raw strings to the DB
+    result.sba_preapproval = !!(sbaFromDom || sbaFromText);
 
-    // State fallback: look for state in the header breadcrumb area
+    // State fallback 1: look for state in the header breadcrumb area
     if (!result.state) {
       const bcLinks = document.querySelectorAll(".breadcrumb a, .bcLinks a");
       for (const a of bcLinks) {
@@ -145,6 +167,43 @@ export async function extractListingData(page, url) {
         // US state abbreviations are 2 uppercase letters
         if (/^[A-Z]{2}$/.test(text)) {
           result.state = text;
+        }
+      }
+    }
+
+    // State fallback 2: extract from description/page text
+    // Only match full state names (3+ chars) to avoid "IN"/"OR" false positives,
+    // or 2-letter abbreviations only when preceded by a comma or "in"/"of"
+    if (!result.state) {
+      const stateNames = {
+        "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+        "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+        "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
+        "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+        "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+        "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
+        "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
+        "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+        "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
+        "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+        "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
+        "vermont": "VT", "virginia": "VA", "washington": "WA", "west virginia": "WV",
+        "wisconsin": "WI", "wyoming": "WY",
+      };
+      // Try full state names first (unambiguous)
+      const textLower = allText.toLowerCase();
+      for (const [name, abbr] of Object.entries(stateNames)) {
+        if (textLower.includes(name)) {
+          result.state = abbr;
+          break;
+        }
+      }
+      // Try 2-letter abbreviations with context (", CT" or "in CT," or "of CT")
+      if (!result.state) {
+        const abbrSet = new Set(Object.values(stateNames));
+        const contextMatch = allText.match(/(?:,\s*|(?:in|of|from)\s+)([A-Z]{2})(?:\s|,|\.|\b)/);
+        if (contextMatch && abbrSet.has(contextMatch[1])) {
+          result.state = contextMatch[1];
         }
       }
     }
@@ -194,6 +253,17 @@ export async function extractListingData(page, url) {
         if (t.length > 50) proseBlocks.push(t);
       }
       if (proseBlocks.length > 0) result.description_text = proseBlocks.join("\n\n");
+    }
+
+    // --- Enrich description with key structured fields for signal extraction ---
+    // BizBuySell puts "Reason for Selling" in dt/dd, not in the description.
+    // Append it so signals.mjs can extract reason_for_sale.
+    const reasonRaw = findValue("Reason for Selling") || findValue("Reason for Sale");
+    if (reasonRaw && result.description_text) {
+      const already = result.description_text.toLowerCase().includes("reason for sel");
+      if (!already) {
+        result.description_text += "\n\nReason for Selling: " + reasonRaw;
+      }
     }
 
     // --- Owner involvement signal ---
@@ -280,7 +350,7 @@ export async function extractListingData(page, url) {
     num_employees: numEmployees,
     num_years: numYears,
     support_training: raw.support_training_raw || null,
-    sba_preapproval: raw.sba_preapproval_raw || null,
+    sba_preapproval: raw.sba_preapproval === true,
     description_text: raw.description_text || null,
     owner_involvement: raw.owner_involvement || null,
     has_recurring_revenue: raw.has_recurring_revenue || false,

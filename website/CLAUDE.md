@@ -5,53 +5,63 @@ Frontend that displays business-for-sale listings from the shared Supabase
 
 ## Tech Stack
 
-- **Markup**: Single `index.html` with inline Tailwind CSS (via CDN)
+- **Framework**: Next.js 15 (App Router, server components)
+- **Styling**: Tailwind CSS v4
 - **Database**: Supabase (PostgreSQL) via `@supabase/supabase-js`
+
+## Project Structure
+
+```
+app/
+  layout.js             # Root layout with Tailwind globals
+  page.js               # Main listings page (server component)
+  globals.css           # Tailwind directives
+lib/
+  supabase.js           # Supabase client + query functions
+```
+
+## Commands
+
+All commands run from this (`website/`) directory:
+
+```bash
+npm install             # Install dependencies
+npm run dev             # Start dev server (localhost:3000)
+npm run build           # Production build
+npm run start           # Start production server
+```
+
+## Environment Variables
+
+Uses the same Supabase credentials as ingest. Create `.env.local`:
+
+```
+SUPABASE_URL=<from root .env>
+SUPABASE_SERVICE_ROLE_KEY=<from root .env>
+```
 
 ## Data Source
 
 This website reads from the `listings` table populated by the `ingest/` scraper.
 See the root [CLAUDE.md](../CLAUDE.md) for the full column schema.
 
----
+Listings are sorted by `index_score` (descending, nulls last). The score is computed
+by the ingest scoring system and stored on `listings.index_score`. The full signal
+breakdown is available in the `listing_scores` table if needed for detail views.
 
-## Best Practices & Conventions
+### Data flow for displayed columns
 
-<!-- Paste your website generation template below this line -->
+Most columns come directly from `listings` table fields (asking_price, cash_flow_sde,
+num_employees, owner_involvement, sba_preapproval, has_recurring_revenue, num_years, etc.).
 
-## Website Design Recreation
+Three columns are derived from the `listing_scores.signals` JSONB and flattened in
+`lib/supabase.js` during the query:
+- `sde_multiple` — from `signals.sde_multiple.value`
+- `reason_for_sale` — from `signals.reason_for_sale.value`
+- `price_revenue_ratio` — from `signals.price_revenue_ratio.value`
 
-### Workflow
+### Current table columns
 
-When the user provides a reference image (screenshot) and optionally some CSS classes or style notes:
-
-1. Generate a single `index.html` file using Tailwind CSS (via CDN). Include all content inline — no external files unless requested.
-2. Screenshot the rendered page using Puppeteer (`npx puppeteer screenshot index.html --fullpage` or equivalent). If the page has distinct sections, capture those individually too.
-3. Compare your screenshot against the reference image. Check for mismatches in:
-   - Spacing and padding (measure in px)
-   - Font sizes, weights, and line heights
-   - Colors (exact hex values)
-   - Alignment and positioning
-   - Border radii, shadows, and effects
-   - Responsive behavior
-   - Image/icon sizing and placement
-4. Fix every mismatch found. Edit the HTML/Tailwind code.
-5. Re-screenshot and compare again.
-6. Repeat steps 3–5 until the result is within ~2–3px of the reference everywhere.
-
-Do NOT stop after one pass. Always do at least 2 comparison rounds. Only stop when the user says so or when no visible differences remain.
-
-### Technical Defaults
-
-- Use Tailwind CSS via CDN (`<script src="https://cdn.tailwindcss.com"></script>`)
-- Use placeholder images from `https://placehold.co/` when source images aren't provided
-- Mobile-first responsive design
-- Single `index.html` file unless the user requests otherwise
-
-### Rules
-
-- Do not add features, sections, or content not present in the reference image
-- Match the reference exactly — do not "improve" the design
-- If the user provides CSS classes or style tokens, use them verbatim
-- Keep code clean but don't over-abstract — inline Tailwind classes are fine
-- When comparing screenshots, be specific about what's wrong (e.g., "heading is 32px but reference shows ~24px", "gap between cards is 16px but should be 24px")
+Industry (link to source), Score, State, Asking Price, Revenue, Cash Flow, SDE Multiple,
+Employees, Owner Involvement, Reason for Sale, SBA Pre-qualified, Price/Revenue Ratio,
+Recurring Revenue, Years in Business

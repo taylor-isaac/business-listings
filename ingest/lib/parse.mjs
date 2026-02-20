@@ -16,8 +16,16 @@ export function parseMoneyToNumber(s) {
   if (!s) return null;
   // Strip parenthetical suffixes like "(24.45%)" before parsing
   const stripped = s.replace(/\s*\([^)]*\)/g, "").trim();
+  // Detect K/M suffix before stripping non-numeric characters
+  const suffix = stripped.match(/(\d)\s*([KkMm])\b/);
   const cleaned = stripped.replace(/[^0-9.]/g, "");
   if (!cleaned) return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
+  let n = Number(cleaned);
+  if (!Number.isFinite(n)) return null;
+  if (suffix) {
+    const s = suffix[2].toUpperCase();
+    if (s === "K") n *= 1000;
+    if (s === "M") n *= 1000000;
+  }
+  return n;
 }
