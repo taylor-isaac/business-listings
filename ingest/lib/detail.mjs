@@ -108,6 +108,11 @@ export async function extractListingData(page, url) {
 
     // --- Year / num_years extraction ---
     result.num_years_raw = findValue("Year Established") || findValue("Established") || findValue("Years in Business") || findValue("Years");
+    // findValue can accidentally match a price element (e.g. "$1,999,950")
+    // when "Established:" shares a parent with .price containers — reject those.
+    if (result.num_years_raw && /^\$/.test(result.num_years_raw)) {
+      result.num_years_raw = null;
+    }
     if (!result.num_years_raw) {
       // "Established in 2006" / "Founded in 1984" / "Operating since 2010"
       // "Established: 1930" / "Year Established: 1984" (colon-separated)

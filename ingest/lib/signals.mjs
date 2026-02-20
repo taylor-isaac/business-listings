@@ -30,7 +30,7 @@ const reasonPatterns = [
   // Favorable
   { pattern: /retir(?:ing|ement|ed)/i, label: "retiring" },
   { pattern: /relocat(?:ing|ion|ed)/i, label: "relocation" },
-  { pattern: /health\s+(?:reasons?|issues?|concerns?)/i, label: "health" },
+  { pattern: /health\s+(?:reasons?|issues?|concerns?|conditions?|problems?)/i, label: "health" },
   { pattern: /other\s+(?:business\s+)?opportunit/i, label: "other opportunities" },
   { pattern: /pursue\s+other/i, label: "other opportunities" },
   { pattern: /personal\s+reasons?/i, label: "personal reasons" },
